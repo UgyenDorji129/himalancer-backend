@@ -1,0 +1,61 @@
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { AuthLoginDto } from './dto/auth-login.dto';
+import * as bcrypt from 'bcryptjs';
+import { FreelancerService } from '../freelancer/freelancer.service';
+
+@Injectable()
+export class AuthFreelancerService {
+  constructor(
+    private freelancerService: FreelancerService,
+    private jwtService: JwtService,
+  ) {}
+
+  async loginFreelancer(authLoginDto: AuthLoginDto) {
+    try {
+      const user = await this.validateFreelancer(
+        authLoginDto.phone,
+        authLoginDto.password,
+      );
+
+      const payload = {
+        userId: user.id,
+        userName: user.name,
+      };
+
+      return {
+        access_token: this.jwtService.sign(payload),
+        success: true,
+      };
+    } catch (e) {
+      return {
+        message: e,
+        success: false,
+      };
+    }
+  }
+
+  private async validateFreelancer(phone: string, password: string) {
+    const foundUser = String(
+      await this.freelancerService.findFreelancerByPhone(phone),
+    );
+    if (!foundUser) {
+      throw new NotFoundException('Invalid creditential');
+    }
+
+    const user = await this.freelancerService.findFreelancerById(foundUser);
+    if (!user) {
+      throw new NotFoundException('Invalid creditential');
+    }
+
+    if (await bcrypt.compare(password, user.password)) {
+      return user;
+    } else {
+      throw new UnauthorizedException('Invalid Credientials');
+    }
+  }
+}
